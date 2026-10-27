@@ -19,6 +19,7 @@
 // file), --bench-pp N / --bench-tg N.  The opt-ins (--kv, --gqa-attn, --mtp-sampled, --snapshots, ...): docs/QWEN36.md.
 #include <fstream>
 #include <iterator>
+#include "ggml.h"
 
 #include "strata/artifact/gguf_reader.hpp"
 #include "strata/core/expert_cache.hpp"   // (strata_engine, through strata_prefill)
@@ -1232,8 +1233,15 @@ float* upload_f32(const strata::TensorInfo& t, const uint8_t* src) {
             const float d = f16_to_f32((uint16_t) (q[0] | (q[1] << 8)));
             for (int j = 0; j < 32; ++j) h[b * 32 + j] = d * (float) (int8_t) q[2 + j];
         }
+    } else if (t.type == GGML_TYPE_Q4_K && h.size() % 256 == 0) {
+        const auto* traits = ggml_get_type_traits(GGML_TYPE_Q4_K);
+        if (!traits || !traits->to_float) {
+            std::fprintf(stderr, "strata-q36: Q4_K dequantizer unavailable\n");
+            std::exit(1);
+        }
+        traits->to_float(src, h.data(), (int64_t) h.size());
     } else {
-        std::fprintf(stderr, "strata-q36: %s is %s, expected F32, BF16, F16 or Q8_0\n", t.name.c_str(), t.type_name());
+        std::fprintf(stderr, "strata-q36: %s is %s, expected F32, BF16, F16, Q8_0 or Q4_K\n", t.name.c_str(), t.type_name());
         std::exit(1);
     }
     float* d = nullptr;
