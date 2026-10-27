@@ -7,6 +7,8 @@ on:
       - q36-r2
     paths:
       - .github/workflows/sage-sm75-build.yml
+      - src/qwen35/q36_engine.cu
+  workflow_dispatch:
 
 permissions:
   contents: read
